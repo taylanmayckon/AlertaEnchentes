@@ -14,11 +14,9 @@
 #include "hardware/pwm.h"
 #include "hardware/i2c.h"
 #include "hardware/adc.h"   
-
 // Structs
 #include "structs.h"
      
-
 // LED RGB, botão e buzzers
 #define LED_RED 13
 #define LED_GREEN 11
@@ -117,18 +115,6 @@ void vTaskReadSensors(void *params){
     }
 }
 
-// Task para consumir a fila
-void vTaskReadQueue(void *params){
-
-    while(true){
-        Sensors sensors;
-
-        if(xQueueReceive(xQueueSensorsData, &sensors, portMAX_DELAY)){
-            printf("[Tarefa: %s]\tJoy_x: %u | Joy_y: %u\n", pcTaskGetName(NULL), sensors.water_level, sensors.rain_volume);
-        }
-        vTaskDelay(pdMS_TO_TICKS(50));
-    }
-}
 
 // Task para controlar a matriz de LEDs
 void vLedMatrixTask(void *params){
@@ -145,8 +131,12 @@ void vLedMatrixTask(void *params){
 
     // Variável para armazenar os dados recebidos da fila
     Alerts alerts;
+    Sensors sensors;
 
     while(true){
+        // Leitura da fila com dados de sensores
+        xQueueReceive(xQueueSensorsData, &sensors, portMAX_DELAY);
+
         // Verificação dos alertas
         if(xQueueReceive(xQueueAlerts, &alerts, portMAX_DELAY)){
 
@@ -171,7 +161,8 @@ void vLedMatrixTask(void *params){
 
             // Se estiver no modo normal
             else{
-                off_leds();
+                // Exibe o nivel na matriz de leds
+                update_levels(sensors.water_level, sensors.rain_volume);
             }
 
 
@@ -191,7 +182,6 @@ int main(){
 
     // Criação das Tasks
     xTaskCreate(vTaskReadSensors, "Read Sensors", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
-    xTaskCreate(vTaskReadQueue, "Read Queue", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
     xTaskCreate(vLedMatrixTask, "Led Matrix", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
     
     // Inicia o agendador

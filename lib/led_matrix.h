@@ -33,4 +33,6 @@ void yellow_animation(float intensidade);
 
 void off_leds();
 
+void update_levels(float water_level, float rain_volume);
+
 #endif
