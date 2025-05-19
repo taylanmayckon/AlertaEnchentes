@@ -30,7 +30,7 @@ project(AlertaEnchentes C CXX ASM)
 
 pico_sdk_init()
 
-add_executable(AlertaEnchentes AlertaEnchentes.c )
+add_executable(AlertaEnchentes AlertaEnchentes.c lib/led_matrix.c lib/ssd1306.c)
 
 pico_set_program_name(AlertaEnchentes "AlertaEnchentes")
 pico_set_program_version(AlertaEnchentes "0.1")

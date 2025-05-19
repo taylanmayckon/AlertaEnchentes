@@ -47,8 +47,9 @@ uint sm;
 uint wrap = 2000;
 uint clkdiv = 25;
 
-// Criando a fila que será utilizada
-QueueHandle_t xQueueJoystickData;
+// Criando as filas que seram utilizadas
+QueueHandle_t xQueueSensorsData;
+QueueHandle_t xQueueAlerts;
 
 
 // FUNÇÕES AUXILIARES =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -57,14 +58,17 @@ QueueHandle_t xQueueJoystickData;
 
 // TASKS UTILIZADAS NO CÓDIGO =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 // Task para leitura do ADC
-void vTaskReadAnalogs(void *params){
+void vTaskReadSensors(void *params){
     // Configurando o ADC
     adc_init();
     adc_gpio_init(JOYSTICK_X); // Canal 1
     adc_gpio_init(JOYSTICK_Y); // Canal 0
 
-    // Struct que será utilizada para armazenar os valores
+    // Structs que serão utilizadas para armazenar os valores
     Joy joystick;
+    Sensors sensors;
+    Alerts alerts;
+
 
     while(true){
         // Leitura do Eixo X (Canal 1)
@@ -74,11 +78,42 @@ void vTaskReadAnalogs(void *params){
         adc_select_input(0);
         joystick.vry_value = adc_read();
 
-        // Enviando os dados para a fila
-        xQueueSend(xQueueJoystickData, &joystick, portMAX_DELAY);
+        // Conversão para porcentagem
+        // Nível de água
+        sensors.water_level = (float)(joystick.vrx_value*100)/4095;
+        // Volume de chuva
+        sensors.rain_volume = (float)(joystick.vry_value*100)/4095;
 
-        printf("[Tarefa: %s]\tJoy_x: %u | Joy_y: %u\n", pcTaskGetName(NULL), joystick.vrx_value, joystick.vry_value);
-        vTaskDelay(pdMS_TO_TICKS(200)); // 10 Hz de leitura
+        // Manipulação das flags de alerta
+        // Modo modo normal
+        if(sensors.water_level<70.0f && sensors.rain_volume<80.0f){
+            alerts.normal_mode = 1;
+            alerts.alert_rain_volume = 0;
+            alerts.alert_water_level = 0;
+        }
+        // Modos de alerta
+        else{
+            alerts.normal_mode = 0;
+            alerts.alert_rain_volume = 0;
+            alerts.alert_water_level = 0;
+            // Nivel de agua
+            if(sensors.water_level>=70.0f){
+                alerts.alert_water_level = 1;
+            }
+            // Volume de chuva
+            if(sensors.rain_volume>=80.0f){
+                alerts.alert_rain_volume = 1;
+            }
+        }
+
+        // Enviando os dados para a fila
+        xQueueSend(xQueueSensorsData, &sensors, portMAX_DELAY);
+        xQueueSend(xQueueAlerts, &alerts, portMAX_DELAY);
+
+        //printf("[Tarefa: %s]\tJoy_x: %u | Joy_y: %u\n", pcTaskGetName(NULL), joystick.vrx_value, joystick.vry_value);
+        printf("[Tarefa: %s]\tWater_Level: %.2f | Rain_Volume: %.2f\n", pcTaskGetName(NULL), sensors.water_level, sensors.rain_volume);
+        printf("[Tarefa: %s]\tNormal: %d | Water: %d | Rain: %d\n", pcTaskGetName(NULL), alerts.normal_mode, alerts.alert_water_level, alerts.alert_rain_volume);
+        vTaskDelay(pdMS_TO_TICKS(50)); // 20 Hz de leitura
     }
 }
 
@@ -86,12 +121,62 @@ void vTaskReadAnalogs(void *params){
 void vTaskReadQueue(void *params){
 
     while(true){
-        Joy joystick;
+        Sensors sensors;
 
-        if(xQueueReceive(xQueueJoystickData, &joystick, portMAX_DELAY)){
-            printf("[Tarefa: %s]\tJoy_x: %u | Joy_y: %u\n", pcTaskGetName(NULL), joystick.vrx_value, joystick.vry_value);
+        if(xQueueReceive(xQueueSensorsData, &sensors, portMAX_DELAY)){
+            printf("[Tarefa: %s]\tJoy_x: %u | Joy_y: %u\n", pcTaskGetName(NULL), sensors.water_level, sensors.rain_volume);
         }
-        vTaskDelay(pdMS_TO_TICKS(100));
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
+// Task para controlar a matriz de LEDs
+void vLedMatrixTask(void *params){
+    // Inicializando a PIO
+    pio = pio0;
+    sm = 0;
+    uint offset = pio_add_program(pio, &ws2812_program);
+    ws2812_program_init(pio, sm, offset, LED_MATRIX_PIN, 800000, IS_RGBW);
+
+    // Variáveis para controlar a animação da matriz
+    float matrix_intensity;
+    int matrix_intensity_step=0;
+    bool matrix_intensity_rising=true;
+
+    // Variável para armazenar os dados recebidos da fila
+    Alerts alerts;
+
+    while(true){
+        // Verificação dos alertas
+        if(xQueueReceive(xQueueAlerts, &alerts, portMAX_DELAY)){
+
+            // Detecta os alertas de chuva e agua
+            if(alerts.alert_rain_volume || alerts.alert_water_level){
+                matrix_intensity = 0.01*matrix_intensity_step;
+                yellow_animation(matrix_intensity);
+                // Animação de pulsar o desenho na matriz de leds
+                if(matrix_intensity_rising){ 
+                    matrix_intensity_step++;
+                    if(matrix_intensity_step==10){
+                        matrix_intensity_rising=false;
+                    }
+                }
+                else{
+                    matrix_intensity_step--;
+                    if(matrix_intensity_step==0){
+                        matrix_intensity_rising=true;
+                    }
+                }
+            }
+
+            // Se estiver no modo normal
+            else{
+                off_leds();
+            }
+
+
+        }
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
 
@@ -100,12 +185,14 @@ void vTaskReadQueue(void *params){
 int main(){
     stdio_init_all();
 
-    // Cria a fila para compartilhamento de valor do joystick
-    xQueueJoystickData = xQueueCreate(10, sizeof(Joy));
+    // Cria a fila para compartilhamento de valor simulado dos sensores
+    xQueueSensorsData = xQueueCreate(10, sizeof(Sensors));
+    xQueueAlerts = xQueueCreate(10, sizeof(Alerts));
 
     // Criação das Tasks
-    xTaskCreate(vTaskReadAnalogs, "Read Analogs", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
+    xTaskCreate(vTaskReadSensors, "Read Sensors", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
     xTaskCreate(vTaskReadQueue, "Read Queue", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
+    xTaskCreate(vLedMatrixTask, "Led Matrix", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
     
     // Inicia o agendador
     vTaskStartScheduler();

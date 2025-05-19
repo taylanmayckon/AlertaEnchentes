@@ -13,6 +13,15 @@ Led_frame led_buffer= {{
     {0,0,0}, {0,0,0}, {0,0,0}, {0,0,0}, {0,0,0}, 
 }};
 
+// FRAME DE ALERTA =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
+Led_frame yellow_frame = {{
+    {0,0,0}, {0,0,0}, {255,255,0}, {0,0,0}, {0,0,0}, 
+    {0,0,0}, {0,0,0}, {255,255,0}, {0,0,0}, {0,0,0}, 
+    {0,0,0}, {0,0,0}, {255,255,0}, {0,0,0}, {0,0,0}, 
+    {0,0,0}, {0,0,0},   {0,0,0},   {0,0,0}, {0,0,0}, 
+    {0,0,0}, {0,0,0}, {255,255,0}, {0,0,0}, {0,0,0}, 
+}};
+
 static inline void put_pixel(uint32_t pixel_grb){
     pio_sm_put_blocking(pio0, 0, pixel_grb << 8u);
 }
@@ -55,4 +64,30 @@ void matrix_update_leds(Led_frame *frame, float intensidade){
         }
     }
     set_leds(intensidade);
+}
+
+// Cor amarela
+void yellow_animation(float intensidade){
+    // Ordenando corretamente o vetor recebido no buffer
+    int j = 0; // Variável para controle do index espelhado
+    for(int i=0; i<25; i++){
+        if(i>4 && i<10){
+            led_buffer.led[i] = yellow_frame.led[9-j];
+            j++;
+        }
+        else if(i>14 && i<20){
+            led_buffer.led[i] = yellow_frame.led[19-j];
+            j++;
+        }
+        else{
+            j=0;
+            led_buffer.led[i] = yellow_frame.led[i];
+        }
+    }
+    set_leds(intensidade);
+}
+
+// Apagar leds
+void off_leds(){
+    set_leds(0);
 }
