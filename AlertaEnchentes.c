@@ -119,7 +119,7 @@ void vTaskReadSensors(void *params){
         //printf("[Tarefa: %s]\tJoy_x: %u | Joy_y: %u\n", pcTaskGetName(NULL), joystick.vrx_value, joystick.vry_value);
         printf("[Tarefa: %s]\tWater_Level: %.2f | Rain_Volume: %.2f\n", pcTaskGetName(NULL), sensors.water_level, sensors.rain_volume);
         printf("[Tarefa: %s]\tNormal: %d | Water: %d | Rain: %d\n", pcTaskGetName(NULL), alerts.normal_mode, alerts.alert_water_level, alerts.alert_rain_volume);
-        vTaskDelay(pdMS_TO_TICKS(25)); // 20 Hz de leitura
+        vTaskDelay(pdMS_TO_TICKS(16)); // 20 Hz de leitura
     }
 }
 
@@ -233,6 +233,98 @@ void vRGBLedTask(void *params){
 }
 
 
+// Task para controlar o Buzzer
+void vBuzzerTask(void *params){
+    set_pwm(BUZZER_A, wrap);
+    set_pwm(BUZZER_B, wrap);
+
+    // Variável para armazenar os dados recebidos da fila
+    Alerts alerts;
+    Sensors sensors;
+
+    // Booleano para on/off do alerta CRÍTICO
+    bool critical_buzzer = true;
+    // Contador para o som do VOLUME DE CHUVA
+    int rain_volume_count = 0;
+    bool rain_volume_active = true;
+    // Contador para o som do VOLUME DE CHUVA
+    int water_level_count = 0;
+    bool water_level_active = true;
+
+    while(true){
+        // Leitura da fila com dados de sensores
+        xQueueReceive(xQueueSensorsData, &sensors, portMAX_DELAY);
+
+        // Verificação dos alertas
+        if(xQueueReceive(xQueueAlerts, &alerts, portMAX_DELAY)){
+            // Alerta CRÍTICO (ambos estouram)
+            if(alerts.alert_rain_volume && alerts.alert_water_level){
+                if(critical_buzzer){
+                    pwm_set_gpio_level(BUZZER_A, wrap*0.05);
+                    pwm_set_gpio_level(BUZZER_B, wrap*0.05);
+                    critical_buzzer = !critical_buzzer;
+                }
+                else{
+                    pwm_set_gpio_level(BUZZER_A, 0);
+                    pwm_set_gpio_level(BUZZER_B, 0);
+                    critical_buzzer = !critical_buzzer;
+                }
+            }
+
+            // Alerta volume de chuva
+            else if(alerts.alert_rain_volume){
+                if(rain_volume_count<5){
+                    if(rain_volume_active){
+                        pwm_set_gpio_level(BUZZER_A, wrap*0.05);
+                        pwm_set_gpio_level(BUZZER_B, wrap*0.05);
+                        rain_volume_active = !rain_volume_active;
+                    }
+                    else{
+                        pwm_set_gpio_level(BUZZER_A, 0);
+                        pwm_set_gpio_level(BUZZER_B, 0);
+                        rain_volume_active = !rain_volume_active;
+                    }
+                }
+                rain_volume_count++;
+
+                if(rain_volume_count==10){
+                    rain_volume_count=0;
+                }
+            }
+
+            // Alerta nível de água
+            else if(alerts.alert_water_level){
+                if(water_level_count<4){
+                    if(water_level_active){
+                        pwm_set_gpio_level(BUZZER_A, wrap*0.05);
+                        pwm_set_gpio_level(BUZZER_B, wrap*0.05);
+                        water_level_active = !water_level_active;
+                    }
+                    else{
+                        pwm_set_gpio_level(BUZZER_A, 0);
+                        pwm_set_gpio_level(BUZZER_B, 0);
+                        water_level_active = !water_level_active;
+                    }
+                }
+                water_level_count++;
+
+                if(water_level_count==10){
+                    water_level_count=0;
+                }
+            }
+
+            // Modo normal (buzzer off)
+            else{
+                pwm_set_gpio_level(BUZZER_A, 0);
+                pwm_set_gpio_level(BUZZER_B, 0);
+            }
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
+
 // FUNÇÃO MAIN =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 int main(){
     stdio_init_all();
@@ -245,6 +337,7 @@ int main(){
     xTaskCreate(vTaskReadSensors, "Read Sensors", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
     xTaskCreate(vLedMatrixTask, "Led Matrix", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
     xTaskCreate(vRGBLedTask, "Led RGB", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
+    xTaskCreate(vBuzzerTask, "Buzzer Alert", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
     
     // Inicia o agendador
     vTaskStartScheduler();
