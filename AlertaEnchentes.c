@@ -45,6 +45,10 @@ uint sm;
 uint wrap = 2000;
 uint clkdiv = 25;
 
+// String para armazenar o tempo restante do semáforo
+char converted_num; // Armazena um dígito
+char converted_string[3]; // Armazena o número convertido (2 dígitos)
+
 // Criando as filas que seram utilizadas
 QueueHandle_t xQueueSensorsData;
 QueueHandle_t xQueueAlerts;
@@ -79,6 +83,29 @@ void make_line(){
     pwm_set_gpio_level(LED_GREEN, 0);
     pwm_set_gpio_level(LED_RED, 0);
     vTaskDelay(pdMS_TO_TICKS(200));
+}
+
+// Função que converte int para char
+void int_2_char(int num, char *out){
+    *out = '0' + num;
+}
+
+void int_2_string(int num){
+    if(num<9){ // Gera string para as menores que 10
+        int_2_char(num, &converted_num); // Converte o dígito à direita do número para char
+        converted_string[0] = '0'; // Char para melhorar o visual
+        converted_string[1] = converted_num; // Int convertido para char
+        converted_string[2] = '\0'; // Terminador nulo da String 
+    }
+    else{ // Gera a string para as maiores/iguais que 10
+        int divider = num/10; // Obtém as dezenas
+        int_2_char(divider, &converted_num);
+        converted_string[0] = converted_num;
+
+        int_2_char(num%10, &converted_num); // Obtém a parte das unidades
+        converted_string[1] = converted_num; // Int convertido para char
+        converted_string[2] = '\0'; // Terminador nulo da String
+    }
 }
 
 
@@ -341,6 +368,93 @@ void vBuzzerTask(void *params){
 }
 
 
+// Task para controlar o display OLED
+void vDisplayOLEDTask(void *params){
+    // Configurando a I2C
+    i2c_init(I2C_PORT, 400 * 1000);
+
+    gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);                    // Set the GPIO pin function to I2C
+    gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);                    // Set the GPIO pin function to I2C
+    gpio_pull_up(I2C_SDA);                                        // Pull up the data line
+    gpio_pull_up(I2C_SCL);                                        // Pull up the clock line
+    ssd1306_t ssd;                                                // Inicializa a estrutura do display
+    ssd1306_init(&ssd, WIDTH, HEIGHT, false, endereco, I2C_PORT); // Inicializa o display
+    ssd1306_config(&ssd);                                         // Configura o display
+    ssd1306_send_data(&ssd);                                      // Envia os dados para o display
+    // Limpa o display. O display inicia com todos os pixels apagados.
+    ssd1306_fill(&ssd, false);
+    ssd1306_send_data(&ssd);
+
+    // Variável para armazenar os dados recebidos da fila
+    Alerts alerts;
+    Sensors sensors;
+
+    int water_level_int;
+    int rain_volume_int;
+
+    while(true){
+        xQueueReceive(xQueueSensorsData, &sensors, portMAX_DELAY);
+        xQueueReceive(xQueueAlerts, &alerts, portMAX_DELAY);
+
+        ssd1306_fill(&ssd, false); // Limpa o display
+        // Borda
+        ssd1306_rect(&ssd, 0, 0, 128, 64, cor, !cor);
+        // Nome superior
+        ssd1306_rect(&ssd, 0, 0, 128, 12, cor, cor); // Fundo preenchido
+        ssd1306_draw_string(&ssd, "DOG STATION", 4, 3, true); // String: Semaforo
+        ssd1306_draw_string(&ssd, "TM", 107, 3, true);
+        // Modo
+        ssd1306_draw_string(&ssd, "AGUA:", 4, 16, false);
+        // Cor
+        ssd1306_draw_string(&ssd, "CHUVA:", 4, 28, false);
+
+        // Retangulos ilustrativos de nível
+        // NIVEL DE ÁGUA
+        ssd1306_rect(&ssd, 16, 56, 39, 8, cor, !cor);                              // Borda fixa do quadrado que se preenche
+        ssd1306_rect(&ssd, 16, 56, (int)39*sensors.water_level/100, 8, cor, cor);  // Quadrado que se preenche dinamicamente            
+        int_2_string((int)sensors.water_level);                                    // Converte o valor decimal para um int e depois string
+        ssd1306_draw_string(&ssd, converted_string, 99, 16, false);               
+        ssd1306_draw_char(&ssd, '%', 115, 16, false);
+
+        // VOLUME DE CHUVA
+        ssd1306_rect(&ssd, 28, 56, 39, 8, cor, !cor);                              // Borda fixa do quadrado que se preenche
+        ssd1306_rect(&ssd, 28, 56, (int)39*sensors.rain_volume/100, 8, cor, cor);  // Quadrado que se preenche dinamicamente 
+        int_2_string((int)sensors.rain_volume);                                    // Converte o valor decimal para um int e depois string
+        ssd1306_draw_string(&ssd, converted_string, 99, 28, false);
+        ssd1306_draw_char(&ssd, '%', 115, 28, false);
+        
+        // Indicação dos alertas
+        // ALERTA CRITICO
+        if(alerts.alert_rain_volume && alerts.alert_water_level){
+            ssd1306_draw_string(&ssd, "ALERTA CRITICO", 7, 44, !cor);
+            // Borda
+            ssd1306_rect(&ssd, 52, 51, 26, 8, cor, !cor);
+            ssd1306_draw_string(&ssd, "!", 59, 52, !cor);
+        }
+        // Nivel de agua
+        else if(alerts.alert_water_level){
+            ssd1306_draw_string(&ssd, "INUNDACAO", 27, 44, !cor);
+            // Borda
+            ssd1306_rect(&ssd, 52, 51, 26, 8, cor, !cor);
+            ssd1306_draw_string(&ssd, "!", 59, 52, !cor);
+        }
+        // Volume de chuva
+        else if(alerts.alert_rain_volume){
+            ssd1306_draw_string(&ssd, "CHUVA INTENSA", 11, 44, !cor);
+            // Borda
+            ssd1306_rect(&ssd, 52, 51, 26, 8, cor, !cor);
+            ssd1306_draw_string(&ssd, "!", 59, 52, !cor);
+        }
+
+
+
+        ssd1306_send_data(&ssd); // Envia os dados para o display, atualizando o mesmo
+
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
+
 // FUNÇÃO MAIN =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 int main(){
     stdio_init_all();
@@ -354,6 +468,7 @@ int main(){
     xTaskCreate(vLedMatrixTask, "Led Matrix", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
     xTaskCreate(vRGBLedTask, "Led RGB", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
     xTaskCreate(vBuzzerTask, "Buzzer Alert", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
+    xTaskCreate(vDisplayOLEDTask, "Display OLED Task", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
     
     // Inicia o agendador
     vTaskStartScheduler();
