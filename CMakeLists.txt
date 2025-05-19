@@ -38,7 +38,7 @@ pico_set_program_version(AlertaEnchentes "0.1")
 # Adicionando o arquivo PIO
 pico_generate_pio_header(AlertaEnchentes ${CMAKE_CURRENT_LIST_DIR}/lib/ws2812.pio OUTPUT_DIR ${CMAKE_CURRENT_LIST_DIR}/generated)
 
-pico_enable_stdio_uart(AlertaEnchentes 0)
+pico_enable_stdio_uart(AlertaEnchentes 1)
 pico_enable_stdio_usb(AlertaEnchentes 1)
 
 target_link_libraries(AlertaEnchentes
