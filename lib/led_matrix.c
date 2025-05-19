@@ -18,14 +18,16 @@ Led_frame led_buffer= {{
 typedef struct {
     Led_color led[5];
 } Color_levels;
+
 // Cores para exibir na matriz
 Color_levels level_colors = {{
     {0, 255, 0},   // Verde
-    {127, 255, 0}, // Verde-amarelado
     {255, 255, 0}, // Amarelo
     {255, 0, 0},   // Vermelho
     {255, 0, 0},   // Vermelho
+    {255, 0, 0},   // Vermelho
 }};
+
 
 // FRAME DE ALERTA =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 Led_frame yellow_frame = {{
