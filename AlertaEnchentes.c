@@ -61,6 +61,26 @@ void set_pwm(uint gpio, uint wrap){
     pwm_set_gpio_level(gpio, 0);
 }
 
+// Função para fazer pontos
+void make_point(){
+    pwm_set_gpio_level(LED_GREEN, wrap*0.05);
+    pwm_set_gpio_level(LED_RED, wrap*0.05);
+    vTaskDelay(pdMS_TO_TICKS(200));
+    pwm_set_gpio_level(LED_GREEN, 0);
+    pwm_set_gpio_level(LED_RED, 0);
+    vTaskDelay(pdMS_TO_TICKS(200));
+}
+
+// Função para fazer pontos
+void make_line(){
+    pwm_set_gpio_level(LED_GREEN, wrap*0.05);
+    pwm_set_gpio_level(LED_RED, wrap*0.05);
+    vTaskDelay(pdMS_TO_TICKS(600));
+    pwm_set_gpio_level(LED_GREEN, 0);
+    pwm_set_gpio_level(LED_RED, 0);
+    vTaskDelay(pdMS_TO_TICKS(200));
+}
+
 
 // TASKS UTILIZADAS NO CÓDIGO =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
 // Task para leitura do ADC
@@ -201,35 +221,31 @@ void vRGBLedTask(void *params){
 
         // Verificação dos alertas
         if(xQueueReceive(xQueueAlerts, &alerts, portMAX_DELAY)){
-            // Modo alerta
+            // Modo alerta (Emite SOS)
             if(alerts.alert_rain_volume || alerts.alert_water_level){
-                alert_intensity = 0.01*alert_intensity_step;
-                // Animação de pulsar o LED RGB
-                if(led_intensity_rising){ 
-                    alert_intensity_step++;
-                    if(alert_intensity_step==10){
-                        led_intensity_rising=false;
-                    }
-                }
-                else{
-                    alert_intensity_step--;
-                    if(alert_intensity_step==0){
-                        led_intensity_rising=true;
-                    }
+                // S
+                make_point(); make_point(); make_point(); 
+                vTaskDelay(pdMS_TO_TICKS(300)); // Espaço entre letras
+
+                // O
+                make_line(); make_line(); make_line(); 
+                vTaskDelay(pdMS_TO_TICKS(300)); // Espaço entre letras
+
+                // S
+                make_point(); make_point(); make_point(); 
+                vTaskDelay(pdMS_TO_TICKS(1000)); // Espaço entre palavras
                 }
 
-                pwm_set_gpio_level(LED_GREEN, wrap*alert_intensity);
-                pwm_set_gpio_level(LED_RED, wrap*alert_intensity);
-            }
             // Modo normal
             else{
                 pwm_set_gpio_level(LED_GREEN, 0);
                 pwm_set_gpio_level(LED_RED, 0);
             }
         }
-
-        vTaskDelay(pdMS_TO_TICKS(50));
+            
     }
+
+    vTaskDelay(pdMS_TO_TICKS(50));
 }
 
 
