@@ -51,7 +51,15 @@ QueueHandle_t xQueueAlerts;
 
 
 // FUNÇÕES AUXILIARES =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
-
+// Função para configurar o PWM e iniciar com 0% de DC
+void set_pwm(uint gpio, uint wrap){
+    gpio_set_function(gpio, GPIO_FUNC_PWM);
+    uint slice_num = pwm_gpio_to_slice_num(gpio);
+    pwm_set_clkdiv(slice_num, clkdiv);
+    pwm_set_wrap(slice_num, wrap);
+    pwm_set_enabled(slice_num, true); 
+    pwm_set_gpio_level(gpio, 0);
+}
 
 
 // TASKS UTILIZADAS NO CÓDIGO =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-
@@ -111,7 +119,7 @@ void vTaskReadSensors(void *params){
         //printf("[Tarefa: %s]\tJoy_x: %u | Joy_y: %u\n", pcTaskGetName(NULL), joystick.vrx_value, joystick.vry_value);
         printf("[Tarefa: %s]\tWater_Level: %.2f | Rain_Volume: %.2f\n", pcTaskGetName(NULL), sensors.water_level, sensors.rain_volume);
         printf("[Tarefa: %s]\tNormal: %d | Water: %d | Rain: %d\n", pcTaskGetName(NULL), alerts.normal_mode, alerts.alert_water_level, alerts.alert_rain_volume);
-        vTaskDelay(pdMS_TO_TICKS(50)); // 20 Hz de leitura
+        vTaskDelay(pdMS_TO_TICKS(25)); // 20 Hz de leitura
     }
 }
 
@@ -171,6 +179,59 @@ void vLedMatrixTask(void *params){
     }
 }
 
+// Task para controlar o Led RGB
+void vRGBLedTask(void *params){
+    // Iniciando os pinos do Led RGB como PWM
+    set_pwm(LED_RED, wrap);
+    set_pwm(LED_GREEN, wrap);
+    set_pwm(LED_BLUE, wrap);
+
+    // Intensidade dos LEDs
+    float alert_intensity;
+    bool led_intensity_rising = true;
+    int alert_intensity_step=0;
+
+    // Variável para armazenar os dados recebidos da fila
+    Alerts alerts;
+    Sensors sensors;
+
+    while(true){
+        // Leitura da fila com dados de sensores
+        xQueueReceive(xQueueSensorsData, &sensors, portMAX_DELAY);
+
+        // Verificação dos alertas
+        if(xQueueReceive(xQueueAlerts, &alerts, portMAX_DELAY)){
+            // Modo alerta
+            if(alerts.alert_rain_volume || alerts.alert_water_level){
+                alert_intensity = 0.01*alert_intensity_step;
+                // Animação de pulsar o LED RGB
+                if(led_intensity_rising){ 
+                    alert_intensity_step++;
+                    if(alert_intensity_step==10){
+                        led_intensity_rising=false;
+                    }
+                }
+                else{
+                    alert_intensity_step--;
+                    if(alert_intensity_step==0){
+                        led_intensity_rising=true;
+                    }
+                }
+
+                pwm_set_gpio_level(LED_GREEN, wrap*alert_intensity);
+                pwm_set_gpio_level(LED_RED, wrap*alert_intensity);
+            }
+            // Modo normal
+            else{
+                pwm_set_gpio_level(LED_GREEN, 0);
+                pwm_set_gpio_level(LED_RED, 0);
+            }
+        }
+
+        vTaskDelay(pdMS_TO_TICKS(50));
+    }
+}
+
 
 // FUNÇÃO MAIN =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 int main(){
@@ -183,6 +244,7 @@ int main(){
     // Criação das Tasks
     xTaskCreate(vTaskReadSensors, "Read Sensors", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
     xTaskCreate(vLedMatrixTask, "Led Matrix", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
+    xTaskCreate(vRGBLedTask, "Led RGB", configMINIMAL_STACK_SIZE, NULL, tskIDLE_PRIORITY, NULL);
     
     // Inicia o agendador
     vTaskStartScheduler();
