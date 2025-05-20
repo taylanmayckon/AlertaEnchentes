@@ -1,4 +1,4 @@
-# 🚥 DogStation - BitDogLab 🚥
+# ⛈️ DogStation - BitDogLab ⛈️
 
 A DogStation tem como objetivo simular o funcionamento de uma estação de monitoramento de cheias através da BitDogLab onde, por meio da leitura dos analógicos da placa, serão simuladas as leituras de sensores que verificam nível de água e volume de chuva. O projeto visa aprofundar o conhecimento em FreeRTOS, dessa vez com a utilização de queues (filas) para o envio de forma eficiente das informações entre as tasks desenvolvidas.
 
