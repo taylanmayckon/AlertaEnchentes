@@ -36,7 +36,25 @@ Desenvolvido por: Taylan Mayckon
 
 ## 📸 **Imagens do Funcionamento**
 
-🚧🚧🚧🚧🚧 Esse tópico está em construção!
+São enviados Logs periódicos para monitorar os dados que estão sendo lidos e enviados para as outras tasks.
+<p align="center">
+  <img src="https://github.com/taylanmayckon/AlertaEnchentes/blob/99cb1a16186f1ed6a12fb30923b5c73be1225c5d/images/EnvioDeLogs.png" alt="Envio de Logs" width="450"><br>
+  <strong>Envio de Logs</strong>
+</p>
+
+As porcentagens atuais podem ser visualizadas através da Matriz de LEDs.
+<p align="center">
+  <img src="https://github.com/taylanmayckon/AlertaEnchentes/blob/99cb1a16186f1ed6a12fb30923b5c73be1225c5d/images/Funcionamento1.jpg" alt="Niveis na Matriz" width="450"><br>
+  <strong>Níveis exibidos na Matriz de LEDs WS2812</strong>
+</p>
+
+Dados lidos e mensagens são visualizados através do Display OLED.
+<p align="center">
+  <img src="https://github.com/taylanmayckon/AlertaEnchentes/blob/99cb1a16186f1ed6a12fb30923b5c73be1225c5d/images/Funcionamento2.jpg" alt="Display OLED" width="450"><br>
+  <img src="https://github.com/taylanmayckon/AlertaEnchentes/blob/99cb1a16186f1ed6a12fb30923b5c73be1225c5d/images/Funcionamento3.jpg" alt="Display OLED" width="450"><br>
+  <img src="https://github.com/taylanmayckon/AlertaEnchentes/blob/99cb1a16186f1ed6a12fb30923b5c73be1225c5d/images/Funcionamento4.jpg" alt="Display OLED" width="450"><br>
+  <strong>Mensagens Emitidas no Display SSD1306</strong>
+</p>
 
 ---
 
