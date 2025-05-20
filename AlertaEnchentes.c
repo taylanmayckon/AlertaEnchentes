@@ -166,7 +166,7 @@ void vTaskReadSensors(void *params){
         //printf("[Tarefa: %s]\tJoy_x: %u | Joy_y: %u\n", pcTaskGetName(NULL), joystick.vrx_value, joystick.vry_value);
         printf("[Tarefa: %s]\tWater_Level: %.2f | Rain_Volume: %.2f\n", pcTaskGetName(NULL), sensors.water_level, sensors.rain_volume);
         printf("[Tarefa: %s]\tNormal: %d | Water: %d | Rain: %d\n", pcTaskGetName(NULL), alerts.normal_mode, alerts.alert_water_level, alerts.alert_rain_volume);
-        vTaskDelay(pdMS_TO_TICKS(16)); // 20 Hz de leitura
+        vTaskDelay(pdMS_TO_TICKS(20)); // 50 Hz de leitura
     }
 }
 
